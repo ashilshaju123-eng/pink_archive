@@ -3,7 +3,7 @@ package com.pinkarchive.backend.controller;
 import com.pinkarchive.backend.model.Product;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -24,5 +24,21 @@ public class ShopController {
     public String shop(Model model) {
         model.addAttribute("products", PRODUCTS);
         return "shop";
+    }
+
+    @GetMapping("/product/{slug}")
+    public String product(@PathVariable String slug, Model model) {
+        Product found = PRODUCTS.stream()
+                .filter(p -> p.getSlug().equals(slug))
+                .findFirst()
+                .orElse(null);
+
+        if (found == null) {
+            return "redirect:/shop";
+        }
+
+        model.addAttribute("product", found);
+        model.addAttribute("sizes", List.of("S", "M", "L"));
+        return "product";
     }
 }

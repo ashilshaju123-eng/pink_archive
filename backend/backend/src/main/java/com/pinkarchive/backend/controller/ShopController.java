@@ -1,7 +1,7 @@
 package com.pinkarchive.backend.controller;
 
+import com.pinkarchive.backend.db.*;
 import com.pinkarchive.backend.model.Cart;
-import com.pinkarchive.backend.model.Product;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -11,16 +11,14 @@ import java.util.List;
 
 @Controller
 public class ShopController {
-    //Mocked data
 
-    private static final List<Product> PRODUCTS = List.of(
-            new Product("Blush Matching Set", "blush-matching-set", 2999, "https://via.placeholder.com/600x800"),
-            new Product("Baby Pink Lounge Set", "baby-pink-lounge-set", 3499, "https://via.placeholder.com/600x800"),
-            new Product("Pastel Zip Set", "pastel-zip-set", 3999, "https://via.placeholder.com/600x800"),
-            new Product("Soft Pink Hoodie Set", "soft-pink-hoodie-set", 4299, "https://via.placeholder.com/600x800"),
-            new Product("Archive Rib Set", "archive-rib-set", 2799, "https://via.placeholder.com/600x800"),
-            new Product("Coquette Set", "coquette-set", 3199, "https://via.placeholder.com/600x800")
-    );
+    private final ProductRepository productRepository;
+    private final VariantRepository variantRepository;
+
+    public ShopController(ProductRepository productRepository, VariantRepository variantRepository) {
+        this.productRepository = productRepository;
+        this.variantRepository = variantRepository;
+    }
 
     private Cart getCart(HttpSession session) {
         Cart cart = (Cart) session.getAttribute("CART");
@@ -31,41 +29,46 @@ public class ShopController {
         return cart;
     }
 
-    private Product findProduct(String slug) {
-        return PRODUCTS.stream().filter(p -> p.getSlug().equals(slug)).findFirst().orElse(null);
-    }
-
     @GetMapping("/shop")
     public String shop(Model model) {
-        model.addAttribute("products", PRODUCTS);
+        model.addAttribute("products", productRepository.findByActiveTrue());
         return "shop";
     }
 
     @GetMapping("/product/{slug}")
     public String product(@PathVariable String slug, Model model) {
-        Product found = findProduct(slug);
-        if (found == null) return "redirect:/shop";
+        ProductEntity product = productRepository.findBySlugAndActiveTrue(slug).orElse(null);
+        if (product == null) return "redirect:/shop";
 
-        model.addAttribute("product", found);
-        model.addAttribute("sizes", List.of("S", "M", "L"));
+        // Load all variants (S/M/L) + stock
+        List<VariantEntity> variants = variantRepository.findByProductOrderBySizeAsc(product);
+
+        model.addAttribute("product", product);
+        model.addAttribute("variants", variants);
         return "product";
     }
 
     @PostMapping("/cart/add")
-    public String addToCart(@RequestParam String slug, @RequestParam String size, HttpSession session) {
-        Product found = findProduct(slug);
-        if (found == null) return "redirect:/shop";
+    public String addToCart(@RequestParam String slug,
+                            @RequestParam String size,
+                            HttpSession session) {
 
-        if (!List.of("S", "M", "L").contains(size)) return "redirect:/product/" + slug;
+        ProductEntity product = productRepository.findBySlugAndActiveTrue(slug).orElse(null);
+        if (product == null) return "redirect:/shop";
 
-        getCart(session).addOrIncrement(found.getSlug(), found.getName(), size, found.getPricePence());
+        VariantEntity variant = variantRepository.findByProductAndSize(product, size).orElse(null);
+        if (variant == null) return "redirect:/product/" + slug;
+
+        // Security / correctness: prevent adding out-of-stock
+        if (variant.getStock() <= 0) return "redirect:/product/" + slug;
+
+        getCart(session).addOrIncrement(product.getSlug(), product.getName(), size, product.getPricePence());
         return "redirect:/cart";
     }
 
     @GetMapping("/cart")
     public String cart(Model model, HttpSession session) {
-        Cart cart = getCart(session);
-        model.addAttribute("cart", cart);
+        model.addAttribute("cart", getCart(session));
         return "cart";
     }
 

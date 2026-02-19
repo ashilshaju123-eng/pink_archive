@@ -93,13 +93,19 @@
                 <div class="d-flex gap-2 flex-wrap mb-3">
                     <button type="button"
                             class="btn btn-light size-btn"
-                            th:each="s : ${sizes}"
-                            th:text="${s}"
-                            th:attr="data-size=${s}"
+                            th:each="v : ${variants}"
+                            th:text="${v.size}"
+                            th:attr="data-size=${v.size}, data-instock=${v.inStock}"
+                            th:disabled="${!v.inStock}"
                             onclick="selectSize(this)">
                         S
                     </button>
                 </div>
+
+                <div class="small opacity-75 mb-3">
+                    <span th:text="'UK shipping • Matching set • Stock updates live'"></span>
+                </div>
+
 
                 <div class="small opacity-75 mb-3">
                     UK shipping • Matching set • Sizes S / M / L
@@ -125,6 +131,8 @@
 
 <script>
     function selectSize(btn) {
+        if (btn.disabled) return;
+
         document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 

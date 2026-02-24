@@ -5,6 +5,7 @@ import com.pinkarchive.backend.db.ProductEntity;
 import com.pinkarchive.backend.db.ProductRepository;
 import com.pinkarchive.backend.db.VariantEntity;
 import com.pinkarchive.backend.db.VariantRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -37,9 +38,9 @@ public class AdminController {
     @GetMapping("/products/new")
     public String newProduct(Model model) {
         ProductForm form = new ProductForm();
-        form.stockS = 10;
-        form.stockM = 10;
-        form.stockL = 10;
+        form.setStockS(10);
+        form.setStockM(10);
+        form.setStockL(10);
         model.addAttribute("form", form);
         return "admin-product-new";
     }
@@ -47,24 +48,30 @@ public class AdminController {
     @PostMapping("/products/new")
     public String createProduct(@ModelAttribute("form") ProductForm form) {
 
-        // Minimal validation
-        if (form.name == null || form.name.isBlank()) return "redirect:/admin/products/new";
-        if (form.slug == null || form.slug.isBlank()) return "redirect:/admin/products/new";
-        if (form.imageUrl == null || form.imageUrl.isBlank()) return "redirect:/admin/products/new";
-        if (form.pricePence <= 0) return "redirect:/admin/products/new";
+        if (form.getName() == null || form.getName().isBlank()) return "redirect:/admin/products/new";
+        if (form.getSlug() == null || form.getSlug().isBlank()) return "redirect:/admin/products/new";
+        if (form.getImageUrl() == null || form.getImageUrl().isBlank()) return "redirect:/admin/products/new";
+        if (form.getPricePence() <= 0) return "redirect:/admin/products/new";
 
-        // Create product
-        ProductEntity p = new ProductEntity(form.name.trim(), form.slug.trim(), form.pricePence, form.imageUrl.trim());
-        p = productRepo.save(p);
+        try {
+            ProductEntity p = new ProductEntity(
+                    form.getName().trim(),
+                    form.getSlug().trim(),
+                    form.getPricePence(),
+                    form.getImageUrl().trim()
+            );
+            p = productRepo.save(p);
 
-        // Create variants S/M/L
-        variantRepo.saveAll(List.of(
-                new VariantEntity(p, "S", Math.max(0, form.stockS)),
-                new VariantEntity(p, "M", Math.max(0, form.stockM)),
-                new VariantEntity(p, "L", Math.max(0, form.stockL))
-        ));
+            variantRepo.saveAll(List.of(
+                    new VariantEntity(p, "S", Math.max(0, form.getStockS())),
+                    new VariantEntity(p, "M", Math.max(0, form.getStockM())),
+                    new VariantEntity(p, "L", Math.max(0, form.getStockL()))
+            ));
 
-        return "redirect:/admin/products";
+            return "redirect:/admin/products";
+        } catch (DataIntegrityViolationException ex) {
+            return "redirect:/admin/products/new?error=slug";
+        }
     }
 
     @GetMapping("/products/{id}/edit")
@@ -75,16 +82,16 @@ public class AdminController {
         List<VariantEntity> variants = variantRepo.findByProductOrderBySizeAsc(p);
 
         ProductForm form = new ProductForm();
-        form.name = p.getName();
-        form.slug = p.getSlug();
-        form.imageUrl = p.getImageUrl();
-        form.pricePence = p.getPricePence();
+        form.setName(p.getName());
+        form.setSlug(p.getSlug());
+        form.setImageUrl(p.getImageUrl());
+        form.setPricePence(p.getPricePence());
 
         for (VariantEntity v : variants) {
             switch (v.getSize()) {
-                case "S" -> form.stockS = v.getStock();
-                case "M" -> form.stockM = v.getStock();
-                case "L" -> form.stockL = v.getStock();
+                case "S" -> form.setStockS(v.getStock());
+                case "M" -> form.setStockM(v.getStock());
+                case "L" -> form.setStockL(v.getStock());
             }
         }
 
@@ -98,17 +105,31 @@ public class AdminController {
         ProductEntity p = productRepo.findById(id).orElse(null);
         if (p == null) return "redirect:/admin/products";
 
-        // Update product fields
-        p.setName(form.name.trim());
-        p.setSlug(form.slug.trim());
-        p.setImageUrl(form.imageUrl.trim());
-        p.setPricePence(form.pricePence);
-        productRepo.save(p);
+        try {
+            p.setName(form.getName().trim());
+            p.setSlug(form.getSlug().trim());
+            p.setImageUrl(form.getImageUrl().trim());
+            p.setPricePence(form.getPricePence());
+            productRepo.save(p);
 
-        // Update variants
-        updateVariantStock(p, "S", form.stockS);
-        updateVariantStock(p, "M", form.stockM);
-        updateVariantStock(p, "L", form.stockL);
+            updateVariantStock(p, "S", form.getStockS());
+            updateVariantStock(p, "M", form.getStockM());
+            updateVariantStock(p, "L", form.getStockL());
+
+            return "redirect:/admin/products";
+        } catch (DataIntegrityViolationException ex) {
+            return "redirect:/admin/products/" + id + "/edit?error=slug";
+        }
+    }
+
+    @PostMapping("/products/{id}/delete")
+    public String deleteProduct(@PathVariable Long id) {
+        ProductEntity p = productRepo.findById(id).orElse(null);
+        if (p == null) return "redirect:/admin/products";
+
+        // Soft delete: remove from store but keep record
+        p.setActive(false);
+        productRepo.save(p);
 
         return "redirect:/admin/products";
     }
@@ -121,16 +142,5 @@ public class AdminController {
             v.setStock(Math.max(0, stock));
             variantRepo.save(v);
         }
-    }
-    @PostMapping("/products/{id}/delete")
-    public String deleteProduct(@PathVariable Long id) {
-        ProductEntity p = productRepo.findById(id).orElse(null);
-        if (p == null) return "redirect:/admin/products";
-
-        // Soft delete: remove from store but keep record
-        p.setActive(false);
-        productRepo.save(p);
-
-        return "redirect:/admin/products";
     }
 }

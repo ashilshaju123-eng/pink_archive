@@ -10,7 +10,7 @@
 <div class="container" style="max-width: 720px;">
     <h1 class="fw-bold">Edit Product</h1>
 
-    <form method="post" th:object="${form}">
+    <form method="post" th:action="@{'/admin/products/' + ${productId} + '/edit'}" th:object="${form}">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
         <div class="mb-3">
             <label class="form-label">Name</label>

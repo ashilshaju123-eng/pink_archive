@@ -122,4 +122,15 @@ public class AdminController {
             variantRepo.save(v);
         }
     }
+    @PostMapping("/products/{id}/delete")
+    public String deleteProduct(@PathVariable Long id) {
+        ProductEntity p = productRepo.findById(id).orElse(null);
+        if (p == null) return "redirect:/admin/products";
+
+        // Soft delete: remove from store but keep record
+        p.setActive(false);
+        productRepo.save(p);
+
+        return "redirect:/admin/products";
+    }
 }

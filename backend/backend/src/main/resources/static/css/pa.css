@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap');
+
+:root{
+    --bg: #fbfafc;
+    --text: #151015;
+    --muted: rgba(21,16,21,0.62);
+
+    --accent: #e56fa4;
+    --accent2: #b84c7c;
+    --mint: #9fe6d6;
+    --lav: #b7a6ff;
+
+    --surface: rgba(255,255,255,0.86);
+    --surface2: rgba(255,255,255,0.92);
+    --border: rgba(21,16,21,0.10);
+
+    --shadow: 0 12px 40px rgba(21,16,21,0.10);
+    --shadow2: 0 18px 55px rgba(21,16,21,0.14);
+
+    --r-lg: 26px;
+    --r-md: 18px;
+    --r-sm: 14px;
+}
+
+/* Premium background + subtle grain (unique look) */
+body{
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    color: var(--text);
+    background:
+            radial-gradient(900px 520px at 12% 6%, rgba(229,111,164,0.18), transparent 60%),
+            radial-gradient(850px 520px at 86% 10%, rgba(159,230,214,0.14), transparent 55%),
+            radial-gradient(900px 640px at 70% 88%, rgba(183,166,255,0.13), transparent 55%),
+            var(--bg);
+    position: relative;
+}
+
+/* grain overlay */
+body::before{
+    content:"";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.08;
+    mix-blend-mode: multiply;
+    background-image:
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+}
+
+/* Editorial headings + signature underline */
+h1,h2,h3{
+    font-family: "Playfair Display", Georgia, serif;
+    letter-spacing: -0.35px;
+}
+
+.pa-title{
+    display:inline-block;
+    position: relative;
+}
+.pa-title::after{
+    content:"";
+    position:absolute;
+    left:-2px;
+    right:-2px;
+    bottom:-8px;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+    rgba(229,111,164,0.0),
+    rgba(229,111,164,0.55),
+    rgba(159,230,214,0.35),
+    rgba(183,166,255,0.35),
+    rgba(229,111,164,0.0)
+    );
+    filter: blur(0.2px);
+}
+
+/* Navbar: glass */
+.pa-nav{
+    background: rgba(255,255,255,0.70);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+}
+
+/* Panel / card surfaces */
+.pa-panel{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow);
+}
+
+.pa-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.pa-card:hover{
+    transform: translateY(-4px);
+    box-shadow: var(--shadow2);
+    border-color: rgba(229,111,164,0.22);
+}
+
+/* Accent ribbon divider (use anywhere) */
+.pa-ribbon{
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+    rgba(229,111,164,0.0),
+    rgba(229,111,164,0.85),
+    rgba(159,230,214,0.55),
+    rgba(183,166,255,0.55),
+    rgba(229,111,164,0.0)
+    );
+}
+
+/* Buttons: gradient + shimmer */
+.pa-btn{
+    position: relative;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: #fff !important;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-weight: 650;
+    letter-spacing: 0.1px;
+    box-shadow: 0 14px 24px rgba(229,111,164,0.22);
+    overflow: hidden;
+    transform: translateZ(0);
+    transition: transform .15s ease, filter .15s ease;
+}
+.pa-btn::after{
+    content:"";
+    position:absolute;
+    top:-40%;
+    left:-60%;
+    width: 55%;
+    height: 180%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    transform: rotate(18deg);
+    opacity: 0.0;
+}
+.pa-btn:hover{
+    transform: translateY(-1px);
+    filter: brightness(0.98);
+}
+.pa-btn:hover::after{
+    opacity: 1;
+    animation: shimmer .9s ease;
+}
+@keyframes shimmer{
+    from { transform: translateX(0) rotate(18deg); }
+    to   { transform: translateX(320%) rotate(18deg); }
+}
+
+/* Secondary buttons */
+.btn-light, .btn-outline-dark{
+    border-radius: 999px;
+}
+.btn-light{
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.85);
+}
+
+/* Inputs */
+.form-control{
+    border-radius: 14px;
+    border: 1px solid rgba(21,16,21,0.14);
+    background: rgba(255,255,255,0.90);
+}
+.form-control:focus{
+    border-color: rgba(229,111,164,0.55);
+    box-shadow: 0 0 0 .2rem rgba(229,111,164,0.16);
+}
+
+/* Images */
+.pa-img{
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+/* Size selector */
+.size-btn{
+    border-radius: 999px;
+    border: 1px solid rgba(21,16,21,0.14);
+    background: rgba(255,255,255,0.86);
+    font-weight: 650;
+}
+.size-btn.active{
+    outline: 2px solid rgba(229,111,164,0.35);
+    background: rgba(229,111,164,0.10);
+}
+.size-btn:disabled{ opacity: 0.45; }
+
+/* Cart/Admin tables */
+.table{
+    border-color: rgba(21,16,21,0.10);
+}
+
+/* Small helper */
+.pa-muted{ color: var(--muted); }

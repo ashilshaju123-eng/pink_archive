@@ -1,0 +1,29 @@
+# Use official OpenJDK 17
+FROM openjdk:17-jdk-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy Gradle wrapper and build files
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle .
+COPY settings.gradle .
+
+# Make Gradle wrapper executable
+RUN chmod +x gradlew
+
+# Download dependencies
+RUN ./gradlew build --no-daemon --refresh-dependencies || true
+
+# Copy the source code
+COPY src src
+
+# Build the project
+RUN ./gradlew build --no-daemon
+
+# Expose port
+EXPOSE 8080
+
+# Run the app
+CMD ["java", "-jar", "build/libs/*.jar"]

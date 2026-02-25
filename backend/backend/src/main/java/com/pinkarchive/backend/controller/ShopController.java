@@ -42,7 +42,10 @@ public class ShopController {
 
         // Load all variants (S/M/L) + stock
         List<VariantEntity> variants = variantRepository.findByProductOrderBySizeAsc(product);
-
+        variants.sort((a, b) -> {
+            java.util.List<String> order = java.util.List.of("S", "M", "L");
+            return Integer.compare(order.indexOf(a.getSize()), order.indexOf(b.getSize()));
+        });
         model.addAttribute("product", product);
         model.addAttribute("variants", variants);
         return "product";

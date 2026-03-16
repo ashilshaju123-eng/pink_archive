@@ -5,6 +5,20 @@ The system provides secure payment processing, product inventory management, and
 
 The project was developed to demonstrate backend architecture, secure payment integrations, and real-world e-commerce workflows using modern Java frameworks.
 
+## Screenshots
+
+### Shop Page
+![Shop](docs/screenshots/shop.png)
+
+### Product Page
+![Product](docs/screenshots/product.png)
+
+### Cart
+![Cart](docs/screenshots/cart.png)
+
+### Admin Dashboard
+![Admin](docs/screenshots/admin-products.png)
+
 ---
 
 # Features
@@ -52,7 +66,7 @@ The following features are planned before full production deployment:
 **Build Tools**
 - Gradle
 
----
+```
 # Architecture:
 Client (Browser)
         │
@@ -80,7 +94,7 @@ MySQL Database
         ├── variants
         ├── orders
         └── order_items
-
+```
 
 The application follows a **layered architecture** where:
 
@@ -89,8 +103,8 @@ The application follows a **layered architecture** where:
 - Data persistence is handled via **Spring Data JPA repositories**
 - Data is stored in a **MySQL relational database**
 
----
 
+```
 # Database Schema
 
 Product
@@ -128,7 +142,7 @@ OrderItem
  ├── unit_price_pence
  ├── quantity
  └── order_id
-
+```
 
 - **Product** stores the main product information.
 - Each product has multiple **Variants** representing different sizes and stock levels.
@@ -136,7 +150,7 @@ OrderItem
 - Each order contains **OrderItems** representing the individual products purchased.
 
 ---
-
+```
 # Payment Flow
 
 Customer
@@ -161,7 +175,7 @@ StripeWebhookController
    │
    ├── Mark order PAID
    └── Decrement inventory
-
+```
 
 The checkout flow works as follows:
 
@@ -174,9 +188,6 @@ The checkout flow works as follows:
 ---
 
 # Running the Project Locally
-
-1. Clone the repository
-
 
 1. Clone the repository
 2. Create a MySQL database (Create DATABASE pink_archive)

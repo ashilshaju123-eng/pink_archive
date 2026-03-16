@@ -1,12 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>Order Confirmed – Pink Archive</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/pa.css">
 </head>
+
 <body>
 <nav class="navbar pa-nav sticky-top">
     <div class="container py-2">
@@ -21,12 +23,137 @@
     </div>
 </nav>
 
-<main class="container my-5" style="max-width:720px;">
-    <div class="pa-panel p-5 text-center">
-        <h1 class="fw-bold pa-title mb-3">Order confirmed</h1>
-        <p class="pa-muted mb-4">Thanks! Payment was successful. (Next step: show order details.)</p>
-        <a class="btn pa-btn btn-lg" href="/shop">Back to shop</a>
+<main class="container my-5" style="max-width: 920px;">
+    <div class="pa-panel p-4 p-md-5 shadow-sm">
+
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+            <div>
+                <div class="small text-uppercase pa-muted">Pink Archive</div>
+                <h1 class="fw-bold pa-title mb-2">Order received</h1>
+
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <!-- Status badge -->
+                    <span id="statusBadge"
+                          class="badge rounded-pill"
+                          th:classappend="${order.status} == 'PAID' ? ' text-bg-success' : ' text-bg-warning'">
+                        <span id="statusText" th:text="${order.status}">CREATED</span>
+                    </span>
+
+                    <!-- Hint text (no ternary; Thymeleaf-safe) -->
+                    <span id="statusHint" class="small pa-muted">
+                        <span th:if="${order.status} != 'PAID'">Confirming payment… this usually takes a few seconds.</span>
+                        <span th:if="${order.status} == 'PAID'">Payment confirmed. Thank you!</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="text-md-end">
+                <div class="pa-muted small">Order Total</div>
+                <div class="fs-3 fw-semibold" th:text="${order.totalFormatted}">£0.00</div>
+                <div class="pa-muted small">
+                    Order ID: <span th:text="${order.id}">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pa-ribbon my-4"></div>
+
+        <h2 class="h5 fw-semibold mb-3">Items</h2>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                <tr>
+                    <th>Product</th>
+                    <th class="text-center">Size</th>
+                    <th class="text-center">Qty</th>
+                    <th class="text-end">Line Total</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="it : ${items}">
+                    <td>
+                        <div class="fw-semibold" th:text="${it.productName}">Product</div>
+                        <div class="small pa-muted" th:text="${it.productSlug}">slug</div>
+                    </td>
+                    <td class="text-center" th:text="${it.size}">S</td>
+                    <td class="text-center" th:text="${it.quantity}">1</td>
+                    <td class="text-end" th:text="${it.lineTotalFormatted}">£0.00</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end mt-3">
+            <a class="btn btn-light" href="/shop">Continue shopping</a>
+        </div>
     </div>
 </main>
+
+<script>
+    // Prefer session_id from URL (Stripe includes it)
+    const urlSessionId = new URLSearchParams(window.location.search).get("session_id");
+    const storedSessionId = /*[[${order.stripeSessionId}]]*/ "";
+    const sessionId = urlSessionId || storedSessionId;
+
+    const statusText = document.getElementById("statusText");
+    const statusBadge = document.getElementById("statusBadge");
+    const statusHint = document.getElementById("statusHint");
+
+    let attempts = 0;
+    let stopped = false;
+
+    function setHint(text) {
+        if (!statusHint) return;
+        statusHint.textContent = text;
+    }
+
+    function setPaidUI() {
+        if (statusText) statusText.textContent = "PAID";
+        if (statusBadge) {
+            statusBadge.classList.remove("text-bg-warning");
+            statusBadge.classList.add("text-bg-success");
+        }
+        setHint("Payment confirmed. Thank you!");
+    }
+
+    async function pollStatus() {
+        if (!sessionId || stopped) return;
+
+        attempts += 1;
+
+        try {
+            const res = await fetch(`/checkout/status?session_id=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+            if (res.ok) {
+                const txt = (await res.text()).trim();
+
+                if (statusText && txt) statusText.textContent = txt;
+
+                if (txt === "PAID") {
+                    setPaidUI();
+                    stopped = true;
+                    return;
+                } else {
+                    setHint("Confirming payment… this usually takes a few seconds.");
+                }
+            }
+        } catch (_) {
+            // ignore and keep polling
+        }
+
+        // backoff: quick at first, then slower
+        const delay = attempts <= 5 ? 1200 : attempts <= 15 ? 2000 : 4000;
+        setTimeout(pollStatus, delay);
+    }
+
+    // If already PAID at render time, don't poll
+    if (statusText && statusText.textContent.trim() === "PAID") {
+        setPaidUI();
+        stopped = true;
+    } else {
+        pollStatus();
+    }
+</script>
+
 </body>
 </html>

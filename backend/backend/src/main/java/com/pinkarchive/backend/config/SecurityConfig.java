@@ -46,12 +46,24 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         // Public pages
-                        .requestMatchers("/", "/shop", "/product/**", "/cart", "/cart/**", "/checkout/**", "/webhook/stripe" ).permitAll()
-                        .requestMatchers("/css/**", "/img/**", "/js/**").permitAll()
+                        .requestMatchers(
+                                "/",
+                                "/shop",
+                                "/product/**",
+                                "/cart",
+                                "/cart/**",
+                                "/checkout/**",
+                                "/webhook/stripe",
+                                "/css/**",
+                                "/img/**",
+                                "/js/**"
+                        ).permitAll()
+
                         // Admin protected
                         .requestMatchers("/admin/**").hasRole("ADMIN")
-                        // Anything else: allow for now (we can tighten later)
-                        .anyRequest().permitAll()
+
+                        // Everything else requires login
+                        .anyRequest().authenticated()
                 )
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/webhook/stripe"))
                 .formLogin(Customizer.withDefaults())

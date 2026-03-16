@@ -1,5 +1,9 @@
 package com.pinkarchive.backend.db;
+
 import jakarta.persistence.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "products")
@@ -24,6 +28,10 @@ public class ProductEntity {
     @Column(nullable = false)
     private boolean active = true;
 
+    // Relationship: Product -> Variants (S/M/L)
+    @OneToMany(mappedBy = "product", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<VariantEntity> variants = new ArrayList<>();
+
     public ProductEntity() {}
 
     public ProductEntity(String name, String slug, int pricePence, String imageUrl) {
@@ -41,6 +49,8 @@ public class ProductEntity {
     public String getImageUrl() { return imageUrl; }
     public boolean isActive() { return active; }
 
+    public List<VariantEntity> getVariants() { return variants; }
+
     public void setName(String name) { this.name = name; }
     public void setSlug(String slug) { this.slug = slug; }
     public void setPricePence(int pricePence) { this.pricePence = pricePence; }
@@ -50,5 +60,11 @@ public class ProductEntity {
     @Transient
     public String getPriceFormatted() {
         return "£" + String.format("%.2f", pricePence / 100.0);
+    }
+
+    @Transient
+    public boolean isSoldOut() {
+        if (variants == null || variants.isEmpty()) return true;
+        return variants.stream().allMatch(v -> v.getStock() <= 0);
     }
 }

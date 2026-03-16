@@ -31,7 +31,12 @@ public class OrderItemEntity {
 
     public OrderItemEntity() {}
 
-    public OrderItemEntity(OrderEntity order, String productSlug, String productName, String size, int unitPricePence, int quantity) {
+    public OrderItemEntity(OrderEntity order,
+                           String productSlug,
+                           String productName,
+                           String size,
+                           int unitPricePence,
+                           int quantity) {
         this.order = order;
         this.productSlug = productSlug;
         this.productName = productName;
@@ -48,7 +53,14 @@ public class OrderItemEntity {
     public int getUnitPricePence() { return unitPricePence; }
     public int getQuantity() { return quantity; }
 
-    public int getLineTotalPence() { return unitPricePence * quantity; }
+    public int getLineTotalPence() {
+        return unitPricePence * quantity;
+    }
+
+    @Transient
+    public String getUnitPriceFormatted() {
+        return "£" + String.format("%.2f", unitPricePence / 100.0);
+    }
 
     @Transient
     public String getLineTotalFormatted() {

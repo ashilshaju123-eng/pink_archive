@@ -8,6 +8,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 
 @Controller
 public class ShopController {
@@ -30,8 +31,31 @@ public class ShopController {
     }
 
     @GetMapping("/shop")
-    public String shop(Model model) {
-        model.addAttribute("products", productRepository.findByActiveTrue());
+    public String shop(
+            @RequestParam(required = false) String size,
+            @RequestParam(required = false, defaultValue = "false") boolean inStock,
+            Model model
+    ) {
+        // Normalise size (S/M/L only)
+        String s = (size == null) ? "" : size.trim().toUpperCase();
+        boolean validSize = Objects.equals(s, "S") || Objects.equals(s, "M") || Objects.equals(s, "L");
+
+        List<ProductEntity> products;
+
+        if (inStock && validSize) {
+            // Filter: only products that have stock > 0 for that size
+            products = productRepository.findDistinctByActiveTrueAndVariants_SizeAndVariants_StockGreaterThan(s, 0);
+        } else {
+            // Default: show all active products
+            products = productRepository.findByActiveTrue();
+        }
+
+        model.addAttribute("products", products);
+
+        // send current filter state back to the template
+        model.addAttribute("filterSize", validSize ? s : "");
+        model.addAttribute("filterInStock", inStock);
+
         return "shop";
     }
 

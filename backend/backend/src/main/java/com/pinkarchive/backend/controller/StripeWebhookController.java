@@ -1,12 +1,14 @@
 package com.pinkarchive.backend.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pinkarchive.backend.db.*;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
-import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
-import com.stripe.net.ApiResource;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -14,12 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import java.io.BufferedReader;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
 @Controller
 public class StripeWebhookController {
+
+    private static final Logger log = LoggerFactory.getLogger(StripeWebhookController.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Value("${stripe.webhookSecret}")
     private String webhookSecret;
@@ -42,62 +47,104 @@ public class StripeWebhookController {
     @PostMapping("/webhook/stripe")
     @ResponseBody
     @Transactional
-    public ResponseEntity<String> handleStripeWebhook(HttpServletRequest request) throws Exception {
+    public ResponseEntity<String> handle(HttpServletRequest request) throws Exception {
 
-        String payload = readBody(request);
+        byte[] bytes = request.getInputStream().readAllBytes();
+        String payload = new String(bytes, StandardCharsets.UTF_8);
+
         String sigHeader = request.getHeader("Stripe-Signature");
+        if (sigHeader == null || sigHeader.isBlank()) {
+            return ResponseEntity.status(400).body("Missing signature");
+        }
+        if (webhookSecret == null || webhookSecret.isBlank() || !webhookSecret.startsWith("whsec_")) {
+            log.warn("Webhook secret not configured. Check STRIPE_WEBHOOK_SECRET env var.");
+            return ResponseEntity.status(400).body("Webhook secret not configured");
+        }
 
         Event event;
         try {
             event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
         } catch (SignatureVerificationException e) {
+            log.warn("Stripe signature verification failed: {}", e.getMessage());
             return ResponseEntity.status(400).body("Invalid signature");
         }
 
-        // We only care about successful checkout completion
-        if ("checkout.session.completed".equals(event.getType())) {
-            Session session = (Session) ApiResource.GSON.fromJson(event.getDataObjectDeserializer().getObject().get().toJson(), Session.class);
+        // Only care about this event
+        if (!"checkout.session.completed".equals(event.getType())) {
+            return ResponseEntity.ok("ignored");
+        }
 
-            String sessionId = session.getId();
+        // ✅ Parse session + metadata from RAW JSON payload (no Stripe deserializer needed)
+        JsonNode root = MAPPER.readTree(payload);
+        JsonNode obj = root.path("data").path("object");
 
-            OrderEntity order = orderRepo.findByStripeSessionId(sessionId).orElse(null);
-            if (order == null) return ResponseEntity.ok("No matching order");
+        String sessionId = obj.path("id").asText(null);
+        String orderIdStr = obj.path("metadata").path("orderId").asText(null);
 
-            // Idempotency: if already paid, do nothing
-            if ("PAID".equals(order.getStatus())) {
-                return ResponseEntity.ok("Already processed");
-            }
+        log.info("checkout.session.completed sessionId={} metadata.orderId={}", sessionId, orderIdStr);
 
-            // Mark paid
-            order.setStatus("PAID");
-            order.setPaidAt(Instant.now());
-            orderRepo.save(order);
+        if (sessionId == null || sessionId.isBlank()) {
+            log.warn("No session id in payload");
+            return ResponseEntity.ok("no session id");
+        }
 
-            // Decrement stock
-            List<OrderItemEntity> items = orderItemRepo.findByOrder(order);
-            for (OrderItemEntity item : items) {
-                ProductEntity p = productRepo.findBySlugAndActiveTrue(item.getProductSlug()).orElse(null);
-                if (p == null) continue;
+        OrderEntity order = null;
 
-                VariantEntity v = variantRepo.findByProductAndSize(p, item.getSize()).orElse(null);
-                if (v == null) continue;
-
-                int newStock = v.getStock() - item.getQuantity();
-                if (newStock < 0) newStock = 0; // safety; we’ll improve later
-                v.setStock(newStock);
-                variantRepo.save(v);
+        // Prefer metadata orderId (most reliable)
+        if (orderIdStr != null && !orderIdStr.isBlank()) {
+            try {
+                Long orderId = Long.parseLong(orderIdStr);
+                order = orderRepo.findById(orderId).orElse(null);
+            } catch (NumberFormatException ignored) {
+                // fall back below
             }
         }
 
-        return ResponseEntity.ok("ok");
-    }
-
-    private String readBody(HttpServletRequest request) throws Exception {
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = request.getReader()) {
-            String line;
-            while ((line = reader.readLine()) != null) sb.append(line);
+        // Fallback: find by session id
+        if (order == null) {
+            order = orderRepo.findByStripeSessionId(sessionId).orElse(null);
         }
-        return sb.toString();
+
+        log.info("Order found={}", (order != null));
+
+        if (order == null) {
+            log.warn("No matching order for session {}", sessionId);
+            return ResponseEntity.ok("no matching order");
+        }
+
+        // Ensure order has session id stored (handy if found by orderId)
+        if (order.getStripeSessionId() == null || order.getStripeSessionId().isBlank()) {
+            order.setStripeSessionId(sessionId);
+        }
+
+        // Idempotent
+        if ("PAID".equals(order.getStatus())) {
+            return ResponseEntity.ok("already processed");
+        }
+
+        // Mark paid
+        order.setStatus("PAID");
+        order.setPaidAt(Instant.now());
+        orderRepo.save(order);
+
+        // Decrement stock
+        List<OrderItemEntity> items = orderItemRepo.findByOrder(order);
+        for (OrderItemEntity item : items) {
+
+            ProductEntity p = productRepo.findBySlugAndActiveTrue(item.getProductSlug()).orElse(null);
+            if (p == null) continue;
+
+            VariantEntity v = variantRepo.findByProductAndSize(p, item.getSize()).orElse(null);
+            if (v == null) continue;
+
+            int newStock = v.getStock() - item.getQuantity();
+            if (newStock < 0) newStock = 0;
+
+            v.setStock(newStock);
+            variantRepo.save(v);
+        }
+
+        log.info("Order {} marked PAID and stock decremented", order.getId());
+        return ResponseEntity.ok("processed");
     }
 }

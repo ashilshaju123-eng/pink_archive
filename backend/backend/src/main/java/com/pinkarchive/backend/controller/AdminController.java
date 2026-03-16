@@ -11,6 +11,15 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.pinkarchive.backend.db.OrderEntity;
+import com.pinkarchive.backend.db.OrderRepository;
+import com.pinkarchive.backend.db.OrderItemEntity;
+import com.pinkarchive.backend.db.OrderItemRepository;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+
+import java.nio.charset.StandardCharsets;
 
 @Controller
 @RequestMapping("/admin")
@@ -18,10 +27,17 @@ public class AdminController {
 
     private final ProductRepository productRepo;
     private final VariantRepository variantRepo;
+    private final OrderRepository orderRepo;
+    private final OrderItemRepository orderItemRepo;
 
-    public AdminController(ProductRepository productRepo, VariantRepository variantRepo) {
+    public AdminController(ProductRepository productRepo,
+                           VariantRepository variantRepo,
+                           OrderRepository orderRepo,
+                           OrderItemRepository orderItemRepo) {
         this.productRepo = productRepo;
         this.variantRepo = variantRepo;
+        this.orderRepo = orderRepo;
+        this.orderItemRepo = orderItemRepo;
     }
 
     @GetMapping
@@ -33,6 +49,12 @@ public class AdminController {
     public String products(Model model) {
         model.addAttribute("products", productRepo.findAll());
         return "admin-products";
+
+    }
+    @GetMapping("/orders")
+    public String orders(Model model) {
+        model.addAttribute("orders", orderRepo.findAllByOrderByCreatedAtDesc());
+        return "admin-orders";
     }
 
     @GetMapping("/products/new")
@@ -142,5 +164,51 @@ public class AdminController {
             v.setStock(Math.max(0, stock));
             variantRepo.save(v);
         }
+    }
+    @GetMapping("/orders/{id}")
+    public String orderDetail(@PathVariable Long id, Model model) {
+
+        OrderEntity order = orderRepo.findById(id).orElse(null);
+        if (order == null) return "redirect:/admin/orders";
+
+        List<OrderItemEntity> items = orderItemRepo.findByOrder(order);
+
+        model.addAttribute("order", order);
+        model.addAttribute("items", items);
+
+        return "admin-order-detail";
+    }
+    @GetMapping(value = "/orders.csv", produces = "text/csv")
+    public ResponseEntity<byte[]> exportOrdersCsv() {
+
+        List<OrderEntity> orders = orderRepo.findAllByOrderByCreatedAtDesc();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("id,status,total_pence,total_formatted,created_at,paid_at,stripe_session_id\n");
+
+        for (OrderEntity o : orders) {
+            sb.append(o.getId()).append(",");
+            sb.append(csv(o.getStatus())).append(",");
+            sb.append(o.getTotalPence()).append(",");
+            sb.append(csv(o.getTotalFormatted())).append(",");
+            sb.append(csv(String.valueOf(o.getCreatedAt()))).append(",");
+            sb.append(csv(String.valueOf(o.getPaidAt()))).append(",");
+            sb.append(csv(o.getStripeSessionId())).append("\n");
+        }
+
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"pink-archive-orders.csv\"")
+                .contentType(new MediaType("text", "csv"))
+                .body(bytes);
+    }
+
+    /** Minimal CSV escaping (handles commas/quotes/newlines) */
+    private String csv(String s) {
+        if (s == null) return "";
+        boolean needsQuotes = s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r");
+        String out = s.replace("\"", "\"\"");
+        return needsQuotes ? "\"" + out + "\"" : out;
     }
 }
